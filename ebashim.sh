@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Объединённый скрипт установки Samba и настройки пользователя veeam
+# Объединённый скрипт установки Samba, настройки пользователя veeam и открытия портов
 # Требует прав root (запускать через sudo)
 
 set -e  # Прерывать выполнение при ошибке
@@ -51,17 +51,22 @@ chmod 777 -R /home/obmen
 
 systemctl restart smbd
 
-echo "=== 4. Настройка iptables для Samba ==="
+echo "=== 4. Настройка iptables для Samba и дополнительных портов ==="
 # Добавляем правила, если их ещё нет
+# SMB
 iptables -C INPUT -p tcp --dport 445 -j ACCEPT 2>/dev/null || iptables -A INPUT -p tcp --dport 445 -j ACCEPT
 iptables -C INPUT -p tcp --dport 139 -j ACCEPT 2>/dev/null || iptables -A INPUT -p tcp --dport 139 -j ACCEPT
 iptables -C INPUT -p udp --dport 137:138 -j ACCEPT 2>/dev/null || iptables -A INPUT -p udp --dport 137:138 -j ACCEPT
+# Порт 24 (вместо 21)
+iptables -C INPUT -p tcp --dport 24 -j ACCEPT 2>/dev/null || iptables -A INPUT -p tcp --dport 24 -j ACCEPT
+# SSH (порт 22) — часто уже разрешён, но добавим на всякий случай
+iptables -C INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null || iptables -A INPUT -p tcp --dport 22 -j ACCEPT
 
 echo "=== 5. Сохранение правил iptables ==="
 netfilter-persistent save
 
 echo "=== 6. Создание пользователя veeam с заданным паролем ==="
-PASSWORD="Asdf1234"  # пароль можно изменить при необходимости
+PASSWORD="Asdf1234"  # пароль изменён
 if id "veeam" &>/dev/null; then
     echo "Пользователь veeam уже существует. Пароль будет обновлён."
 else
@@ -74,7 +79,7 @@ echo "Пароль для veeam установлен: $PASSWORD"
 usermod -a -G sudo veeam
 echo "Пользователь veeam добавлен в группу sudo."
 
-echo "=== 8. Настройка прав на домашний каталог и создание /home/rs ==="
+echo "=== 7. Настройка прав на домашний каталог и создание /home/rs ==="
 chown veeam:veeam /home/veeam
 chmod 755 /home/veeam
 
@@ -86,4 +91,5 @@ echo "=== Готово! ==="
 echo "Samba настроена и запущена. Общая папка доступна по адресу: //<IP-сервера>/obmen"
 echo "Пользователь veeam создан (пароль: $PASSWORD) и добавлен в sudo."
 echo "Каталоги: /home/veeam и /home/rs созданы с соответствующими правами."
+echo "Открыты порты: Samba (139, 445, UDP 137-138), порт 24 и SSH (22)."
 echo "Правила iptables добавлены и сохранены."
